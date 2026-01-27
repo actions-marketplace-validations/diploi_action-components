@@ -26,10 +26,11 @@ try {
     if (
       'env' in component &&
       'include' in component.env &&
-      typeof env.include !== 'string'
+      typeof component.env.include !== 'string' &&
+      Array.isArray(component.env.include)
     ) {
       env = Object.fromEntries(
-        list
+        component.env.include
           .filter((entry) => {
             if (typeof entry === 'string') return false;
             if ('value' in entry && 'name' in entry) return true;
