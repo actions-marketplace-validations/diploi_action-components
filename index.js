@@ -18,12 +18,29 @@ try {
 
     if (!fs.existsSync(folder)) {
       throw new Error(
-        `Folder "${folder}" for the ${component.identifier} component is missing.`
+        `Folder "${folder}" for the ${component.identifier} component is missing.`,
+      );
+    }
+
+    let env = {};
+    if (
+      'env' in component &&
+      'include' in component.env &&
+      typeof env.include !== 'string'
+    ) {
+      env = Object.fromEntries(
+        list
+          .filter((entry) => {
+            if (typeof entry === 'string') return false;
+            if ('value' in entry && 'name' in entry) return true;
+            return false;
+          })
+          .map((env) => [`${env.name}`, `${env.value}`]),
       );
     }
 
     const isDevImageAvailable = fs.existsSync(
-      path.join(folder, 'Dockerfile.dev')
+      path.join(folder, 'Dockerfile.dev'),
     );
 
     const componentOutput = {
@@ -31,6 +48,7 @@ try {
       name: component.name || component.identifier,
       folder,
       type: isDevImageAvailable ? 'main' : 'main-dev',
+      env,
     };
 
     componentsOutput.push(componentOutput);
