@@ -3,6 +3,8 @@ const path = require('path');
 const yaml = require('js-yaml');
 const core = require('@actions/core');
 
+const envKeyRegex = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
 try {
   const config = yaml.load(fs.readFileSync('diploi.yaml', 'utf-8'));
   const componentsOutput = [];
@@ -22,22 +24,43 @@ try {
       );
     }
 
-    let env = {};
+    let env = [];
     if (
       'env' in component &&
       'include' in component.env &&
       typeof component.env.include !== 'string' &&
       Array.isArray(component.env.include)
     ) {
-      env = Object.fromEntries(
-        component.env.include
-          .filter((entry) => {
-            if (typeof entry === 'string') return false;
-            if ('value' in entry && 'name' in entry) return true;
-            return false;
-          })
-          .map((env) => [`${env.name}`, `${env.value}`]),
-      );
+      env = component.env.include
+        .filter(
+          (entry) =>
+            typeof entry === 'object' &&
+            entry &&
+            'name' in entry &&
+            'value' in entry,
+        )
+        .map((entry) => {
+          const key = String(entry.name);
+          const value = String(entry.value);
+
+          if (!envKeyRegex.test(key)) {
+            throw new Error(
+              `Invalid ENV name "${key}". Must match ${envKeyRegex}`,
+            );
+          }
+
+          if (value.includes('\n') || value.includes('\r')) {
+            throw new Error(
+              `ENV "${key}" contains newline characters. Multiline values are not supported via diploi.yaml.`,
+            );
+          }
+
+          if (value.includes('\u0000')) {
+            throw new Error(`ENV "${key}" contains a null byte.`);
+          }
+
+          return `${key}=${value}`;
+        });
     }
 
     const isDevImageAvailable = fs.existsSync(
@@ -49,7 +72,7 @@ try {
       name: component.name || component.identifier,
       folder,
       type: isDevImageAvailable ? 'main' : 'main-dev',
-      env,
+      buildArgs: env.join('\n'),
     };
 
     componentsOutput.push(componentOutput);
